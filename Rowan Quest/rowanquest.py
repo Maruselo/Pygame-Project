@@ -7,10 +7,11 @@ WINWIDTH = 800
 WINHEIGHT = 800
 PLAYERHEIGHT = 8
 PLAYERWIDTH = 6
-TILESIZE = 8
+TILESIZEX = 8
+TILESIZEY = 8
 PLAYERSIZEX = 30
 PLAYERSIZEY = 40
-SPAWNPOINT = (360, 520)
+SPAWNPOINT = (360, 540)
 RANGERATE = 0.15
 MAXRANGE = 4
 JUMPRATE = -0.25
@@ -29,13 +30,17 @@ LEFT = "left"
 RIGHT = "right"
 
 def main():
+    global FPSCLOCK, DISPLAYSURF, BASICFONT, animation_frames
     
-    global FPSCLOCK, DISPLAYSURF, animation_frames
+    
     pygame.init()
     FPSCLOCK = pygame.time.Clock()
+    
     DISPLAYSURF = pygame.display.set_mode((WINWIDTH, WINHEIGHT))
     pygame.display.set_caption("Rowan Quest")
     DISPLAYSURF.fill(BGCOLOR)
+    
+    # BASICFONT = pygame.font.Font('freesansbold.tff', 18)
     
     animation_frames = {}
     animation_database = {'idle':   load_animation('animations/idle', [100, 10]),
@@ -47,15 +52,18 @@ def main():
                           }
     
     game_map = load_map('tilemaps/map0')
-    print(game_map)
+
     tiles = [pygame.Rect(0, 580, WINWIDTH, 60), pygame.Rect(100, 520, 200, 100), pygame.Rect(350, 450, 100, 20), pygame.Rect(600, 220, 150, 500)]
     player = {'surface': None,
               'facing': LEFT,
               'x': SPAWNPOINT[0],
               'y': SPAWNPOINT[1],
               'action': 'idle',
-              'frame': 0
+              'frame': 0,
              }
+    
+    ## START SCREEN HERE ##
+    start_screen()
     
     flip = False
     moveLeft = False
@@ -93,14 +101,48 @@ def main():
         for tile in tiles:
             pygame.draw.rect(DISPLAYSURF, (255, 255, 255), tile)
         
+                
+        for event in pygame.event.get():
+            if event.type == QUIT:
+                terminate()
+                
+            elif event.type == KEYDOWN:
+                if event.key == K_ESCAPE:
+                    terminate()
+                if not hasCrashed:
+                    if event.key in (K_LEFT, K_a):
+                        moveLeft = True
+                        moveRight = False
+                        if player['facing'] == RIGHT and isGrounded:
+                            flip = False
+                        player['facing'] = LEFT
+                    elif event.key in (K_RIGHT, K_d):
+                        moveLeft = False
+                        moveRight = True
+                        if player['facing'] == LEFT and isGrounded:
+                            flip = True
+                        player['facing'] = RIGHT
+                    elif event.key == K_SPACE:
+                        if not isCharging and isGrounded:
+                            isCharging = True
+                            
+            elif event.type == KEYUP:
+                if not hasCrashed:
+                    if event.key in (K_LEFT, K_a):
+                        moveLeft = False
+                    elif event.key in (K_RIGHT, K_d):
+                        moveRight = False
+                    elif event.key == K_SPACE:
+                        if isCharging:
+                            velocityY = jumpPower
+                            jumpPower = 0
+                            isJumping = True
+                            isGrounded = False
+                            isCharging = False
+                            inAir = True
         
-        movement = [0, 0] 
-        if not isCharging and not isJumping and isGrounded and not hasCrashed:
-            if moveRight:
-                movement[0] += velocityX
-            elif moveLeft:
-                movement[0] -= velocityX
-        elif isCharging and not isJumping and isGrounded:
+        movement = [0, 0]
+        if isCharging:
             if moveRight:
                 xrange += RANGERATE
                 if xrange > MAXRANGE:
@@ -109,33 +151,42 @@ def main():
                 xrange -= RANGERATE
                 if xrange < -MAXRANGE:
                     xrange = -MAXRANGE
-        elif not isCharging and isJumping and not isGrounded:
-            movement[0] += xrange
-         
-        if not isCharging and not isJumping and isGrounded:
-            xrange = 0
-            
-        if isCharging:
-            player['action'], player['frame'] = change_action(player['action'], player['frame'], 'charge')
             jumpPower += JUMPRATE
-            if jumpPower < MAXJUMP:
+            if jumpPower <= MAXJUMP:
                 velocityY = jumpPower
-                jumpPower = 0
                 isJumping = True
                 isGrounded = False
                 isCharging = False
-                
-        if inAir and not hasBounced:
-            player['action'], player['frame'] = change_action(player['action'], player['frame'], 'jump')
+                inAir = True
+                jumpPower = 0
+        elif isJumping:
+            movement[0] += xrange
+        elif isGrounded:
+            if moveRight:
+                movement[0] += velocityX
+            elif moveLeft:
+                movement[0] -= velocityX
+        elif inAir:
+            movement[0] = 1
             
+        if isGrounded and not isCharging:
+            xrange = 0
+         
         movement[1] += velocityY
         velocityY += GRAVITY
         if velocityY > MAXGRAVITY:
             velocityY = MAXGRAVITY 
-           
-        if abs(movement[0]) > 0 and isGrounded:
+            
+            
+        if isCharging:
+            player['action'], player['frame'] = change_action(player['action'], player['frame'], 'charge')
+  
+        elif (inAir or isJumping) and not hasBounced:
+            player['action'], player['frame'] = change_action(player['action'], player['frame'], 'jump')
+            
+        elif abs(movement[0]) > 0 and isGrounded:
             player['action'], player['frame'] = change_action(player['action'], player['frame'], 'walk')
-        elif movement[0] == 0 and not isCharging and not hasCrashed:
+        elif movement[0] == 0 and not hasCrashed:
             player['action'], player['frame'] = change_action(player['action'], player['frame'], 'idle')
         
         
@@ -161,70 +212,54 @@ def main():
                 flip = True
             elif player['facing'] == LEFT:
                 flip = False
+        else:
+            inAir = True
+            isGrounded = False
+            
         if collisions['top']:
             velocityY = 1
             xrange /= 2
-        if collisions['left']:
-            if not isGrounded:
+        if collisions['left'] and inAir:
                 xrange *= BOUNCERATE
                 hasBounced = True
                 player['action'], player['frame'] = change_action(player['action'], player['frame'], 'bounce')
-        if collisions['right']:
-            if not isGrounded:
+        if collisions['right'] and inAir:
                 xrange *= BOUNCERATE
                 hasBounced = True
                 player['action'], player['frame'] = change_action(player['action'], player['frame'], 'bounce')
-        if collisions['border']:
-            if not isGrounded:
+        if collisions['border'] and inAir:
                 xrange *= BOUNCERATE
                 hasBounced = True
                 player['action'], player['frame'] = change_action(player['action'], player['frame'], 'bounce')
                 
-                
-        for event in pygame.event.get():
-            if event.type == QUIT:
-                pygame.quit()
-                sys.exit()
-                
-            elif event.type == KEYDOWN:
-                if not hasCrashed:
-                    if event.key in (K_LEFT, K_a):
-                        moveLeft = True
-                        moveRight = False
-                        if player['facing'] == RIGHT and isGrounded:
-                            flip = False
-                        player['facing'] = LEFT
-                    elif event.key in (K_RIGHT, K_d):
-                        moveLeft = False
-                        moveRight = True
-                        if player['facing'] == LEFT and isGrounded:
-                            flip = True
-                        player['facing'] = RIGHT
-                    elif event.key == K_SPACE:
-                        if not isJumping and isGrounded:
-                            isGrounded = False
-                            isJumping = True
-                            isCharging = True
-                        
-            elif event.type == KEYUP:
-                if not hasCrashed:
-                    if event.key in (K_LEFT, K_a):
-                        moveLeft = False
-                    elif event.key in (K_RIGHT, K_d):
-                        moveRight = False
-                    elif event.key == K_SPACE:
-                        if not isJumping and isGrounded:
-                            velocityY = jumpPower
-                            jumpPower = 0
-                            isJumping = True
-                            isGrounded = False
-                            isCharging = False
-                            inAir = True
-            
+       
         pygame.display.update()
         FPSCLOCK.tick(FPS)
 
-
+def terminate():
+    pygame.quit()
+    sys.exit()
+    
+    
+def start_screen():
+    titleImage = pygame.transform.scale(pygame.image.load('tiles/backgrounds/bg0.png'), [TILESIZEX, TILESIZEY]) 
+    titleRect = titleImage.get_rect()
+    titleRect.topleft = (0, 0)
+    DISPLAYSURF.fill(BGCOLOR)
+    DISPLAYSURF.blit(titleImage, titleRect)
+    
+    while True:
+        for event in pygame.event.get():
+            if event.type == QUIT:
+                terminate()
+            elif event.type == KEYDOWN:
+                if event.key == K_ESCAPE:
+                    terminate()
+                return
+            
+    pygame.display.update()
+    FPSCLOCK.tick(FPS)
+    
 def load_map(path):
     map_file = open(path + ".txt", 'r')
     map_data = map_file.read()
@@ -244,7 +279,7 @@ def load_animation(path, frame_durations):
     for frame in frame_durations:
         animation_frame_id = animation_name + str(n)
         img_loc = path + "/" + animation_frame_id + ".png"
-        animation_image = pygame.image.load(img_loc)
+        animation_image = pygame.image.load(img_loc).convert()
         animation_image.set_colorkey(WHITE)
         animation_frames[animation_frame_id] = animation_image.copy()
         
