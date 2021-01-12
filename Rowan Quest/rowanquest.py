@@ -4,7 +4,10 @@ from pygame.locals import *
 
 FPS = 60
 WINWIDTH = 800
-WINHEIGHT = 640
+WINHEIGHT = 800
+PLAYERHEIGHT = 8
+PLAYERWIDTH = 6
+TILESIZE = 8
 PLAYERSIZEX = 30
 PLAYERSIZEY = 40
 SPAWNPOINT = (360, 520)
@@ -30,20 +33,21 @@ def main():
     global FPSCLOCK, DISPLAYSURF, animation_frames
     pygame.init()
     FPSCLOCK = pygame.time.Clock()
-    
     DISPLAYSURF = pygame.display.set_mode((WINWIDTH, WINHEIGHT))
     pygame.display.set_caption("Rowan Quest")
     DISPLAYSURF.fill(BGCOLOR)
     
     animation_frames = {}
     animation_database = {'idle':   load_animation('animations/idle', [100, 10]),
-                          'walk':   load_animation('animations/walk', [5, 8, 8]),
+                          'walk':   load_animation('animations/walk', [5, 10, 10]),
                           'charge': load_animation('animations/charge', [1]),
                           'jump':   load_animation('animations/jump', [1]),
                           'bounce': load_animation('animations/bounce', [1]),
                           'crash':  load_animation('animations/crash', [1])
                           }
     
+    game_map = load_map('tilemaps/map0')
+    print(game_map)
     tiles = [pygame.Rect(0, 580, WINWIDTH, 60), pygame.Rect(100, 520, 200, 100), pygame.Rect(350, 450, 100, 20), pygame.Rect(600, 220, 150, 500)]
     player = {'surface': None,
               'facing': LEFT,
@@ -220,6 +224,17 @@ def main():
         pygame.display.update()
         FPSCLOCK.tick(FPS)
 
+
+def load_map(path):
+    map_file = open(path + ".txt", 'r')
+    map_data = map_file.read()
+    map_file.close()
+    map_data = map_data.split("\n")
+    game_map = []
+    for row in map_data:
+        game_map.append(list(row))
+        
+    return game_map
 
 def load_animation(path, frame_durations):
     global animation_frames
