@@ -1,4 +1,4 @@
-import pygame, sys, time
+import pygame, sys
 from pygame.locals import *
 
 
@@ -9,16 +9,17 @@ TILESIZE = 40
 PLAYERSIZEX = 30
 PLAYERSIZEY = 40
 SPAWNPOINT = (360, 680)
-RANGERATE = 0.15
+RANGERATE = 0.25
 MAXRANGE = 4
 JUMPRATE = -0.25
 MAXJUMP = -10
 GRAVITY = 0.25
 MAXGRAVITY = 10
-BOUNCERATE = -0.4
+BOUNCERATE = -0.5
 CRASHSTUN = 2
 
-BLUE = (0, 170, 255)
+SOUNDVOL = 0.4
+
 WHITE = (255, 255, 255)
 BLACK = (0, 0, 0)
 
@@ -28,9 +29,9 @@ LEFT = "left"
 RIGHT = "right"
 
 def main():
-    global FPSCLOCK, DISPLAYSURF, BASICFONT, TILEMAP, animation_frames
+    global FPSCLOCK, DISPLAYSURF
     
-    
+    pygame.mixer.pre_init(44100, -16, 2, 512)
     pygame.init()
     FPSCLOCK = pygame.time.Clock()
     
@@ -38,7 +39,14 @@ def main():
     pygame.display.set_caption("Rowan Quest")
     DISPLAYSURF.fill(BGCOLOR)
     
-    # BASICFONT = pygame.font.Font('freesansbold.tff', 18)
+    ## START SCREEN HERE ##
+    start_screen()
+    
+    while True:
+        run_game()
+
+def run_game():
+    global animation_frames, TILEMAP
     
     TILESET = {'topleft':        pygame.image.load('tiles/platforms/topleft.png'),
                'top':            pygame.image.load('tiles/platforms/top.png'),
@@ -80,11 +88,19 @@ def main():
              1: load_background('bg0')
              }   
      
+    SOUNDS = {'jump':   pygame.mixer.Sound('sound/jump.wav'),
+              'land':   pygame.mixer.Sound('sound/land.wav'),
+              'crash':  pygame.mixer.Sound('sound/crash.wav'),
+              'bounce': pygame.mixer.Sound('sound/bounce.wav')
+              }
+    
+    for sound in SOUNDS.values():
+        sound.set_volume(SOUNDVOL)
+        
     game_map, tiles = draw_map(MAPSET[0], BGSET[0])
     game_rect = game_map.get_rect()
     game_rect.center = (WINWIDTH / 2, WINHEIGHT / 2)
     DISPLAYSURF.blit(game_map, game_rect)
-
 
     animation_frames = {}
     animation_database = {'idle':   load_animation('animations/idle', [100, 10]),
@@ -94,7 +110,6 @@ def main():
                           'bounce': load_animation('animations/bounce', [1]),
                           'crash':  load_animation('animations/crash', [1])
                           }
-    
 
     player = {'surface': None,
               'facing': LEFT,
@@ -104,8 +119,7 @@ def main():
               'frame': 0,
              }
     
-    ## START SCREEN HERE ##
-    start_screen()
+    player['rect'] = pygame.Rect((player['x'], player['y'], PLAYERSIZEX, PLAYERSIZEY))
     
     flip = False
     moveLeft = False
@@ -115,17 +129,17 @@ def main():
     isCharging = False
     inAir = False
     hasBounced  = False
+    bounceSide = None
     hasCrashed = False
+    isSpawning = True
     crashTime = 0
     velocityX = 3
     velocityY = 0
     xrange = 0
     jumpPower = 0
     floor = 0
-    player['rect'] = pygame.Rect((player['x'], player['y'], PLAYERSIZEX, PLAYERSIZEY))
     
     while True:
-        
         if player['rect'].colliderect(DISPLAYSURF.get_rect()) == 0:
             if player['rect'].y < 0:
                 floor += 1
@@ -160,6 +174,8 @@ def main():
             elif event.type == KEYDOWN:
                 if event.key == K_ESCAPE:
                     terminate()
+                elif event.key == K_o:
+                    option_screen()
                 if not hasCrashed:
                     if event.key in (K_LEFT, K_a):
                         moveLeft = True
@@ -191,7 +207,8 @@ def main():
                             isGrounded = False
                             isCharging = False
                             inAir = True
-        
+                            SOUNDS['jump'].play()
+                            
         movement = [0, 0]
         if isCharging:
             if moveRight:
@@ -210,6 +227,7 @@ def main():
                 isCharging = False
                 inAir = True
                 jumpPower = 0
+                SOUNDS['jump'].play()
         elif isJumping:
             movement[0] += xrange
         elif isGrounded:
@@ -217,15 +235,13 @@ def main():
                 movement[0] += velocityX
             elif moveLeft:
                 movement[0] -= velocityX
-        elif inAir:
+        elif inAir and not isSpawning and not hasBounced:
             if flip:
-                movement[0] = 1
+                movement[0] += velocityX / 2
             else:
-                movement[0] = -1
-      
+                movement[0] -= velocityX / 2
         if isGrounded and not isCharging:
-            xrange = 0
-         
+            xrange = 0   
         movement[1] += velocityY
         velocityY += GRAVITY
         if velocityY > MAXGRAVITY:
@@ -234,21 +250,20 @@ def main():
             
         if isCharging:
             player['action'], player['frame'] = change_action(player['action'], player['frame'], 'charge')
-  
-        elif (inAir or isJumping) and not hasBounced:
-            player['action'], player['frame'] = change_action(player['action'], player['frame'], 'jump')
-            
+        elif (inAir or isJumping) and not hasBounced and not isSpawning:
+            player['action'], player['frame'] = change_action(player['action'], player['frame'], 'jump') 
         elif abs(movement[0]) > 0 and isGrounded:
-            player['action'], player['frame'] = change_action(player['action'], player['frame'], 'walk')
-            
-        elif movement[0] == 0 and not hasCrashed:
+            player['action'], player['frame'] = change_action(player['action'], player['frame'], 'walk')    
+        elif movement[0] == 0 and not hasCrashed and not hasBounced:
             player['action'], player['frame'] = change_action(player['action'], player['frame'], 'idle')
         
 
         player['rect'], collisions = move(player['rect'], movement, tiles)
-        
         if collisions['bottom']:
+            if inAir and velocityY < MAXGRAVITY and not isSpawning:
+                SOUNDS['land'].play()
             if velocityY == MAXGRAVITY:
+                SOUNDS['crash'].play()
                 hasCrashed = True
                 moveLeft = False
                 moveRight = False
@@ -263,47 +278,109 @@ def main():
             isGrounded = True
             inAir = False
             hasBounced = False
+            bounceSide = None
+            isSpawning = False
             if player['facing'] == RIGHT:
                 flip = True
             elif player['facing'] == LEFT:
                 flip = False
         else:
             inAir = True
-            isGrounded = False
-            
+            isGrounded = False 
         if collisions['top']:
+            hasBounced = True
+            bounceSide = None
             velocityY = 1
-            xrange /= 2
+            xrange *= -BOUNCERATE
+            SOUNDS['bounce'].play()
+            player['action'], player['frame'] = change_action(player['action'], player['frame'], 'bounce')
         if collisions['left'] and inAir:
-                xrange *= BOUNCERATE
-                hasBounced = True
-                player['action'], player['frame'] = change_action(player['action'], player['frame'], 'bounce')
+            xrange *= BOUNCERATE
+            hasBounced = True
+            if bounceSide != LEFT:
+                SOUNDS['bounce'].play()
+                bounceSide = LEFT
+            player['action'], player['frame'] = change_action(player['action'], player['frame'], 'bounce')
         if collisions['right'] and inAir:
-                xrange *= BOUNCERATE
-                hasBounced = True
-                player['action'], player['frame'] = change_action(player['action'], player['frame'], 'bounce')
-        if collisions['border'] and inAir:
-                xrange *= BOUNCERATE
-                hasBounced = True
-                player['action'], player['frame'] = change_action(player['action'], player['frame'], 'bounce')
+            xrange *= BOUNCERATE
+            hasBounced = True
+            if bounceSide != RIGHT:
+                SOUNDS['bounce'].play()
+                bounceSide = RIGHT
+            player['action'], player['frame'] = change_action(player['action'], player['frame'], 'bounce')
                 
-       
+
         pygame.display.update()
         FPSCLOCK.tick(FPS)
-
+        
+        
+        
 def terminate():
     pygame.quit()
     sys.exit()
     
     
 def start_screen():
-    titleImage = pygame.transform.scale(pygame.image.load('tiles/backgrounds/bg0.png'), [WINWIDTH, WINHEIGHT])
-    titleRect = titleImage.get_rect()
-    titleRect.topleft = (0, 0)
+    bgImage = pygame.transform.scale(pygame.image.load('tiles/backgrounds/bg0.png'), [WINWIDTH, WINHEIGHT])
+    bgImage.set_alpha(80)
+    bgRect = bgImage.get_rect()
+    bgRect.topleft = (0, 0)
 
+    startButton = draw_button(1)
+    buttonRect = startButton.get_rect()
+    buttonRect.center = (WINWIDTH / 2, (WINHEIGHT / 2) + 168)
     DISPLAYSURF.fill(BGCOLOR)
-    DISPLAYSURF.blit(titleImage, titleRect)
+    DISPLAYSURF.blit(bgImage, bgRect)
+    DISPLAYSURF.blit(startButton, buttonRect)
+    hovering = False
+    clicked = False
     
+    while True:
+        if clicked:
+            pygame.time.wait(300)
+            return
+        
+        if not hovering:
+            DISPLAYSURF.fill(BGCOLOR)
+            DISPLAYSURF.blit(bgImage, bgRect) 
+            DISPLAYSURF.blit(draw_button(1), buttonRect)
+        
+        for event in pygame.event.get():
+            if event.type == QUIT:
+                terminate()
+            elif event.type == KEYDOWN:
+                if event.key == K_ESCAPE:
+                    terminate()
+            elif event.type == MOUSEMOTION:
+                mousex, mousey = event.pos
+                if buttonRect.collidepoint(mousex, mousey):
+                    hovering = True
+                    DISPLAYSURF.fill(BGCOLOR)
+                    DISPLAYSURF.blit(bgImage, bgRect) 
+                    DISPLAYSURF.blit(draw_button(2), buttonRect)
+                else:
+                    hovering = False
+            elif event.type == MOUSEBUTTONDOWN:
+                if event.button == 1:
+                    mousex, mousey = event.pos
+                if buttonRect.collidepoint(mousex, mousey):
+                    DISPLAYSURF.fill(BGCOLOR)
+                    DISPLAYSURF.blit(bgImage, bgRect) 
+                    DISPLAYSURF.blit(draw_button(3), buttonRect)
+                    clicked = True
+        pygame.display.update()
+        FPSCLOCK.tick(FPS)
+
+def draw_button(state):
+    button = pygame.image.load('tiles/buttons/StartButton' + str(state) + ".png").convert()
+    button.set_colorkey(BGCOLOR)
+    
+    return button
+
+
+def option_screen():
+    pygame.draw.rect(DISPLAYSURF, WHITE, (200, 200, 400, 200))
+
     while True:
         for event in pygame.event.get():
             if event.type == QUIT:
@@ -315,7 +392,8 @@ def start_screen():
             
         pygame.display.update()
         FPSCLOCK.tick(FPS)
-    
+
+
 def load_map(path):
     map_file = open('tilemaps/' + path + ".txt", 'r')
     map_data = map_file.read()
@@ -333,7 +411,6 @@ def load_background(path):
     return bgScaled
 
 def load_animation(path, frame_durations):
-    global animation_frames
     animation_name = path.split('/')[-1]
     animation_frame_data = []
     n = 0
@@ -343,7 +420,6 @@ def load_animation(path, frame_durations):
         animation_image = pygame.image.load(img_loc).convert()
         animation_image.set_colorkey(WHITE)
         animation_frames[animation_frame_id] = animation_image.copy()
-        
         for i in range(frame):
             animation_frame_data.append(animation_frame_id)    
         n += 1
@@ -356,11 +432,10 @@ def draw_map(tilemap, background):
     mapSurf = pygame.Surface((mapSurfWidth, mapSurfHeight))
     mapSurf.fill(BGCOLOR)
     
-    background.set_alpha(120)
+    background.set_alpha(80)
     bgRect = background.get_rect()
     mapSurf.blit(background, bgRect)
     tiles = []
-    
     for y in range(len(tilemap)):
         for x in range(len(tilemap)):
            tileRect = pygame.Rect((x * TILESIZE, y * TILESIZE, TILESIZE, TILESIZE))
@@ -382,27 +457,24 @@ def change_action(cur_action, frame, new_action):
 
 def collision_test(rect, tiles):
     collisions = []
-    
     for tile in tiles:
         if rect.colliderect(tile):
             collisions.append(tile)
             
     return collisions
 
-
     
 def move(rect, movement, tiles):
-    collision_types = {'top': False, 'bottom': False, 'left': False, 'right': False, 'border': False}
+    collision_types = {'top': False, 'bottom': False, 'left': False, 'right': False}
     
     rect.x += movement[0]
     collisions = collision_test(rect, tiles)
     if rect.left <= 0:
         rect.left = 0
-        collision_types['border'] = True
+        collision_types['left'] = True
     elif rect.right >= WINWIDTH:
         rect.right = WINWIDTH
-        collision_types['border'] = True
-        
+        collision_types['right'] = True
     for tile in collisions:
         if movement[0] > 0:
             rect.right = tile.left
