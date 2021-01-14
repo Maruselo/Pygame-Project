@@ -17,8 +17,7 @@ GRAVITY = 0.25
 MAXGRAVITY = 10
 BOUNCERATE = -0.5
 CRASHSTUN = 2
-
-SOUNDVOL = 0.4
+SOUNDVOL = 0.5
 
 WHITE = (255, 255, 255)
 BLACK = (0, 0, 0)
@@ -29,7 +28,7 @@ LEFT = "left"
 RIGHT = "right"
 
 def main():
-    global FPSCLOCK, DISPLAYSURF
+    global FPSCLOCK, DISPLAYSURF, jumpFont
     
     pygame.mixer.pre_init(44100, -16, 2, 512)
     pygame.init()
@@ -39,6 +38,7 @@ def main():
     pygame.display.set_caption("Rowan Quest")
     DISPLAYSURF.fill(BGCOLOR)
     
+    jumpFont = load_font('fonts/jumpFont.png')
     ## START SCREEN HERE ##
     start_screen()
     
@@ -138,6 +138,8 @@ def run_game():
     xrange = 0
     jumpPower = 0
     floor = 0
+    jumps = 0
+    scrollX = 0
     
     while True:
         if player['rect'].colliderect(DISPLAYSURF.get_rect()) == 0:
@@ -175,7 +177,10 @@ def run_game():
                 if event.key == K_ESCAPE:
                     terminate()
                 elif event.key == K_o:
-                    option_screen()
+                    screen = DISPLAYSURF.copy()
+                    scrollX = option_screen(screen, jumps, scrollX)
+                    for sound in SOUNDS.values():
+                        sound.set_volume(SOUNDVOL)
                 if not hasCrashed:
                     if event.key in (K_LEFT, K_a):
                         moveLeft = True
@@ -192,6 +197,8 @@ def run_game():
                     elif event.key == K_SPACE:
                         if not isCharging and isGrounded:
                             isCharging = True
+                            if jumps <= 9999:
+                                jumps += 1
                             
             elif event.type == KEYUP:
                 if not hasCrashed:
@@ -332,6 +339,7 @@ def start_screen():
     DISPLAYSURF.fill(BGCOLOR)
     DISPLAYSURF.blit(bgImage, bgRect)
     DISPLAYSURF.blit(startButton, buttonRect)
+    
     hovering = False
     clicked = False
     
@@ -371,28 +379,62 @@ def start_screen():
         pygame.display.update()
         FPSCLOCK.tick(FPS)
 
-def draw_button(state):
-    button = pygame.image.load('tiles/buttons/StartButton' + str(state) + ".png").convert()
-    button.set_colorkey(BGCOLOR)
+
+def option_screen(gamemap, jumps, scrollX=0):
+    global SOUNDVOL
     
-    return button
+    optionImg = pygame.image.load('tiles/backgrounds/optionbg.png')
+    scrollBar = pygame.image.load('tiles/buttons/ScrollBar.png')
 
-
-def option_screen():
-    pygame.draw.rect(DISPLAYSURF, WHITE, (200, 200, 400, 200))
-
+    optionRect = optionImg.get_rect()
+    optionRect.center = (WINWIDTH / 2, WINHEIGHT / 2)
+    scrollRect = scrollBar.get_rect()
+    if scrollX == 0:
+        scrollRect.center = (optionRect.centerx, optionRect.centery - 50)
+    else:
+        scrollRect.center = (scrollX, optionRect.centery - 50)
+    DISPLAYSURF.blit(optionImg, optionRect)
+    DISPLAYSURF.blit(scrollBar, scrollRect)
+    draw_text(jumpFont, DISPLAYSURF, str(jumps), (415, 440))
+    XMIN = optionRect.centerx - 150
+    XMAX = optionRect.centerx + 150
+    
+    savedx = None
+    clicked = False
+    
     while True:
+        
         for event in pygame.event.get():
             if event.type == QUIT:
                 terminate()
             elif event.type == KEYDOWN:
                 if event.key == K_ESCAPE:
-                    terminate()
-                return
-            
+                    return scrollRect.centerx
+            elif event.type == MOUSEBUTTONDOWN:
+                if event.button == 1:
+                    mousex, mousey = event.pos
+                    if scrollRect.collidepoint(mousex, mousey):
+                        clicked = True
+            elif event.type == MOUSEMOTION:
+                if clicked:
+                    mousex = event.pos[0]
+                    distance = mousex - scrollRect.centerx
+                    if scrollRect.centerx + distance >= XMIN and scrollRect.centerx + distance <= XMAX:
+                        scrollRect.centerx += distance
+                        SOUNDVOL = round((scrollRect.centerx - XMIN) / (XMAX - XMIN), 1)
+                        DISPLAYSURF.fill(BGCOLOR)
+                        DISPLAYSURF.blit(gamemap, (0, 0))
+                        DISPLAYSURF.blit(optionImg, optionRect)
+                        DISPLAYSURF.blit(scrollBar, scrollRect)
+                        draw_text(jumpFont, DISPLAYSURF, str(jumps), (415, 440))
+                        
+            elif event.type == MOUSEBUTTONUP:
+                if event.button == 1:
+                    clicked = False
+
         pygame.display.update()
         FPSCLOCK.tick(FPS)
-
+        
 
 def load_map(path):
     map_file = open('tilemaps/' + path + ".txt", 'r')
@@ -445,6 +487,51 @@ def draw_map(tilemap, background):
                mapSurf.blit(tile, tileRect)    
     
     return mapSurf, tiles
+
+
+def clip(surf, x, y, width, height):
+    handle_surf = surf.copy()
+    clipR = pygame.Rect(x, y, width, height)
+    handle_surf.set_clip(clipR)
+    image = surf.subsurface(handle_surf.get_clip())
+    
+    return image.copy()
+
+
+def load_font(path):
+    font_img = pygame.image.load(path)
+    chr_order = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0']
+    current_chr_width = 0
+    characters = {}
+    chr_count = 0
+    for x in range(font_img.get_width()):
+        color = font_img.get_at((x, 0))
+        if color == BLACK:
+            chr_img = clip(font_img, x - current_chr_width, 0, current_chr_width, font_img.get_height())
+            characters[chr_order[chr_count]] = chr_img.copy()
+            chr_count += 1
+            current_chr_width = 0
+        else:
+            current_chr_width += 1
+            
+    return characters
+
+
+def draw_text(font, surf, text, location):
+    x_offset = 0
+    spacing = 1
+    for char in text:
+        if char != ' ':
+            surf.blit(font[char], (location[0] + x_offset, location[1]))
+            x_offset += font[char].get_width() + spacing
+        else:
+            x_offset += font['0'].get_width() + spacing
+        
+def draw_button(state):
+    button = pygame.image.load('tiles/buttons/StartButton' + str(state) + ".png").convert()
+    button.set_colorkey(BGCOLOR)
+
+    return button
 
 
 def change_action(cur_action, frame, new_action):
