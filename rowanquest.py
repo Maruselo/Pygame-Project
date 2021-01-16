@@ -5,10 +5,10 @@ from pygame.locals import *
 FPS = 60
 WINWIDTH = 800
 WINHEIGHT = 800
-TILESIZE = 40
+TILESIZE = 32
 PLAYERSIZEX = 30
 PLAYERSIZEY = 40
-SPAWNPOINT = (360, 680)
+SPAWNPOINT = (360, 696)
 RANGERATE = 0.25
 MAXRANGE = 4
 JUMPRATE = -0.25
@@ -54,10 +54,10 @@ def run_game():
     
     CHARACTERS = {'Guest': {
                              'image': pygame.transform.scale(pygame.image.load('tiles/characters/Guest.png'), [PLAYERSIZEX, PLAYERSIZEY]),
-                             'x': 200,
-                             'y': 680,
-                             'dialogue': list("Ah, it's you!$/She's already at the top$/Best not make her wait$$/Oh, and...$/if I'm being too loud$/Press O to change the volume$ "),
-                             'x_offset': 50,
+                             'x': 210,
+                             'y': 696,
+                             'dialogue': list("Ah, it's you!$/She's already at the top$/She's rather fast...$$/Good luck getting there bud$/Oh, and...$/if I'm being too loud,$/press O to change the volume$$$ "),
+                             'x_offset': 0,
                              'text_offset': 0,
                              'letter_cd': 50,
                              'floor': 0
@@ -375,7 +375,7 @@ def terminate():
     
     
 def start_screen():
-    bgImage = pygame.transform.scale(pygame.image.load('tiles/backgrounds/bg0.png'), [WINWIDTH, WINHEIGHT])
+    bgImage = pygame.transform.scale(pygame.image.load('tiles/backgrounds/titlescreen.png'), [WINWIDTH, WINHEIGHT])
     bgImage.set_alpha(80)
     bgRect = bgImage.get_rect()
     bgRect.topleft = (0, 0)
@@ -580,6 +580,14 @@ def draw_text(font, surf, text, location):
 
 def draw_tw_text(font, surf, text, character):  
     spacing = 2
+    if character['text_offset'] == 0:
+        character['x_offset'] = 0
+        for letter in text:
+            if letter == "$":
+                break
+            elif letter != ' ':
+                character['x_offset'] += round(font[letter].get_width() / 2, 1)
+                
     if not character['letter_cd'] and text:
         char = text.pop(0)
         if char not in (' ', '/', '$'):
@@ -594,7 +602,7 @@ def draw_tw_text(font, surf, text, character):
             character['text_offset'] += font['.'].get_width() + spacing
         
         if char == '$':
-            character['letter_cd'] = 50
+            character['letter_cd'] = 60
         else:
             character['letter_cd'] = 8
     if character['letter_cd']:
