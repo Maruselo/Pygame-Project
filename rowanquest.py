@@ -28,7 +28,7 @@ LEFT = "left"
 RIGHT = "right"
 
 def main():
-    global FPSCLOCK, DISPLAYSURF, jumpFont
+    global FPSCLOCK, DISPLAYSURF, jumpFont, textFont
     
     pygame.mixer.pre_init(44100, -16, 2, 512)
     pygame.init()
@@ -38,7 +38,9 @@ def main():
     pygame.display.set_caption("Rowan Quest")
     DISPLAYSURF.fill(BGCOLOR)
     
-    jumpFont = load_font('fonts/jumpFont.png')
+    jumpFont = load_font('fonts/jumpFont.png', ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'])
+    textFont = load_font('fonts/textFont.png', ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z', 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z', '.', ',', "'", '!', '?'])
+    
     ## START SCREEN HERE ##
     start_screen()
     
@@ -46,8 +48,24 @@ def main():
         run_game()
 
 def run_game():
-    global animation_frames, TILEMAP
+    global animation_frames, TILEMAP, CHARACTERS, SOUNDS
     
+    
+    
+    CHARACTERS = {'Guest': {
+                             'image': pygame.transform.scale(pygame.image.load('tiles/characters/Guest.png'), [PLAYERSIZEX, PLAYERSIZEY]),
+                             'x': 200,
+                             'y': 680,
+                             'dialogue': list("Ah, it's you!$/She's already at the top$/Best not make her wait$$/Oh, and...$/if I'm being too loud$/Press O to change the volume$ "),
+                             'x_offset': 50,
+                             'text_offset': 0,
+                             'letter_cd': 50,
+                             'floor': 0
+                            }
+                   }
+    
+    CHARACTERS['Guest']['rect'] = pygame.Rect(CHARACTERS['Guest']['x'], CHARACTERS['Guest']['y'], PLAYERSIZEX, PLAYERSIZEY)
+
     TILESET = {'topleft':        pygame.image.load('tiles/platforms/topleft.png'),
                'top':            pygame.image.load('tiles/platforms/top.png'),
                'topright':       pygame.image.load('tiles/platforms/topright.png'),
@@ -91,19 +109,25 @@ def run_game():
     SOUNDS = {'jump':   pygame.mixer.Sound('sound/jump.wav'),
               'land':   pygame.mixer.Sound('sound/land.wav'),
               'crash':  pygame.mixer.Sound('sound/crash.wav'),
-              'bounce': pygame.mixer.Sound('sound/bounce.wav')
+              'bounce': pygame.mixer.Sound('sound/bounce.wav'),
+              'speak':  pygame.mixer.Sound('sound/speak.wav')
               }
     
     for sound in SOUNDS.values():
         sound.set_volume(SOUNDVOL)
-        
-    game_map, tiles = draw_map(MAPSET[0], BGSET[0])
+    
+    
+    floor = 0
+
+    character = get_character(CHARACTERS, floor)
+    game_map, tiles = draw_map(MAPSET[floor], BGSET[floor], character)
+    clear_map = game_map.copy()
     game_rect = game_map.get_rect()
     game_rect.center = (WINWIDTH / 2, WINHEIGHT / 2)
     DISPLAYSURF.blit(game_map, game_rect)
 
     animation_frames = {}
-    animation_database = {'idle':   load_animation('animations/idle', [100, 10]),
+    animation_database = {'idle':   load_animation('animations/idle', [140, 10]),
                           'walk':   load_animation('animations/walk', [5, 10, 10]),
                           'charge': load_animation('animations/charge', [1]),
                           'jump':   load_animation('animations/jump', [1]),
@@ -140,21 +164,43 @@ def run_game():
     floor = 0
     jumps = 0
     scrollX = 0
-    
+    typeText = True
+    interrupted = False
     while True:
+        
+        if character and character['dialogue'] and not interrupted:
+            clearText = draw_tw_text(textFont, game_map, character['dialogue'], character)
+            if not clearText:
+                textSurf = pygame.Surface((character['text_offset'], 24))
+                textRect = textSurf.get_rect()
+                textRect.topleft = (character['x'] - character['x_offset'], character['y'] - 24)
+                textSurf.blit(game_map, (0, 0), area=textRect)
+            else:
+                game_map, clear_map = clear_map, clear_map.copy()
+                DISPLAYSURF.fill(BGCOLOR)
+                DISPLAYSURF.blit(clear_map, game_rect)
+        else:
+            typeText = False
+            
         if player['rect'].colliderect(DISPLAYSURF.get_rect()) == 0:
             if player['rect'].y < 0:
                 floor += 1
+                interrupted = True
                 player['rect'].y = WINHEIGHT
             elif player['rect'].y > 0:
                 floor -= 1
+                interrupted = True
                 player['rect'].y = 0
-            game_map, tiles = draw_map(MAPSET[floor], BGSET[floor])
+            character = get_character(CHARACTERS, floor)
+            game_map, tiles = draw_map(MAPSET[floor], BGSET[floor], character)
+            clear_map = game_map.copy()
             game_rect = game_map.get_rect()
 
-            
+
         DISPLAYSURF.fill(BGCOLOR)
-        DISPLAYSURF.blit(game_map, game_rect)
+        DISPLAYSURF.blit(clear_map, game_rect)
+        if typeText:
+            DISPLAYSURF.blit(textSurf, textRect)
         
         player_img_id = animation_database[player['action']][player['frame']]
         if player['action'] != 'crash':
@@ -197,7 +243,7 @@ def run_game():
                     elif event.key == K_SPACE:
                         if not isCharging and isGrounded:
                             isCharging = True
-                            if jumps <= 9999:
+                            if jumps < 9999:
                                 jumps += 1
                             
             elif event.type == KEYUP:
@@ -269,6 +315,7 @@ def run_game():
         if collisions['bottom']:
             if inAir and velocityY < MAXGRAVITY and not isSpawning:
                 SOUNDS['land'].play()
+                movement[0] = 0
             if velocityY == MAXGRAVITY:
                 SOUNDS['crash'].play()
                 hasCrashed = True
@@ -339,13 +386,13 @@ def start_screen():
     DISPLAYSURF.fill(BGCOLOR)
     DISPLAYSURF.blit(bgImage, bgRect)
     DISPLAYSURF.blit(startButton, buttonRect)
-    
+
     hovering = False
     clicked = False
     
     while True:
         if clicked:
-            pygame.time.wait(300)
+            pygame.time.wait(200)
             return
         
         if not hovering:
@@ -403,7 +450,6 @@ def option_screen(gamemap, jumps, scrollX=0):
     clicked = False
     
     while True:
-        
         for event in pygame.event.get():
             if event.type == QUIT:
                 terminate()
@@ -412,6 +458,7 @@ def option_screen(gamemap, jumps, scrollX=0):
                     return scrollRect.centerx
             elif event.type == MOUSEBUTTONDOWN:
                 if event.button == 1:
+
                     mousex, mousey = event.pos
                     if scrollRect.collidepoint(mousex, mousey):
                         clicked = True
@@ -468,7 +515,7 @@ def load_animation(path, frame_durations):
         
     return animation_frame_data
 
-def draw_map(tilemap, background):
+def draw_map(tilemap, background, character=None):
     mapSurfWidth = WINWIDTH
     mapSurfHeight = WINHEIGHT
     mapSurf = pygame.Surface((mapSurfWidth, mapSurfHeight))
@@ -486,6 +533,10 @@ def draw_map(tilemap, background):
                tiles.append(tileRect)
                mapSurf.blit(tile, tileRect)    
     
+    if character:
+        character['image'].set_colorkey(WHITE)
+        mapSurf.blit(character['image'], character['rect'])
+        
     return mapSurf, tiles
 
 
@@ -498,9 +549,8 @@ def clip(surf, x, y, width, height):
     return image.copy()
 
 
-def load_font(path):
+def load_font(path, chr_order):
     font_img = pygame.image.load(path)
-    chr_order = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0']
     current_chr_width = 0
     characters = {}
     chr_count = 0
@@ -526,7 +576,34 @@ def draw_text(font, surf, text, location):
             x_offset += font[char].get_width() + spacing
         else:
             x_offset += font['0'].get_width() + spacing
+
+
+def draw_tw_text(font, surf, text, character):  
+    spacing = 2
+    if not character['letter_cd'] and text:
+        char = text.pop(0)
+        if char not in (' ', '/', '$'):
+            if char not in (',', '.', '!', '?', "'"):
+                SOUNDS['speak'].play()
+            surf.blit(font[char], (character['x'] + character['text_offset'] - character['x_offset'], character['y'] - 24))
+            character['text_offset'] += font[char].get_width() + spacing
+        elif char == '/':
+            character['text_offset'] = 0
+            return True
+        else:
+            character['text_offset'] += font['.'].get_width() + spacing
         
+        if char == '$':
+            character['letter_cd'] = 50
+        else:
+            character['letter_cd'] = 8
+    if character['letter_cd']:
+        character['letter_cd'] -= 1
+    
+    return False
+
+
+
 def draw_button(state):
     button = pygame.image.load('tiles/buttons/StartButton' + str(state) + ".png").convert()
     button.set_colorkey(BGCOLOR)
@@ -534,6 +611,14 @@ def draw_button(state):
     return button
 
 
+def get_character(characters, floor):
+    for character in characters:
+        if characters[character]['floor'] == floor:
+            return characters[character]
+        
+    return None
+
+    
 def change_action(cur_action, frame, new_action):
     if cur_action != new_action:
         cur_action = new_action
