@@ -17,6 +17,7 @@ GRAVITY = 0.25
 MAXGRAVITY = 10
 BOUNCERATE = -0.5
 CRASHSTUN = 2
+CUTSCENETIMER = 0.1
 SOUNDVOL = 0.5
 
 WHITE = (255, 255, 255)
@@ -46,9 +47,9 @@ def main():
     
     while True:
         run_game()
-
+        end_scene()
 def run_game():
-    global animation_frames, TILEMAP, CHARACTERS, SOUNDS
+    global animation_frames, animation_database, game_map, game_rect, player, character, TILEMAP, CHARACTERS, SOUNDS
     
     
     
@@ -56,16 +57,27 @@ def run_game():
                              'image': pygame.transform.scale(pygame.image.load('tiles/characters/Guest.png'), [PLAYERSIZEX, PLAYERSIZEY]),
                              'x': 210,
                              'y': 696,
-                             'dialogue': list("Ah, it's you!$/She's already at the top$/She's rather fast...$$/Good luck getting there bud$/Oh, and...$/if I'm being too loud,$/press O to change the volume$$$ "),
+                             'dialogue': list("Ah, it's you!$/She's already at the top$/She's rather fast...$  /Good luck getting there bud$/Oh, and...$/if I'm being too loud,$/press O to change the volume$$$ "),
                              'x_offset': 0,
                              'text_offset': 0,
-                             'letter_cd': 50,
+                             'letter_cd': 60,
                              'floor': 0
+                            },
+                   'Rowan': {
+                              'image':  pygame.transform.scale(pygame.image.load('tiles/characters/Rowan.png'), [PLAYERSIZEX, PLAYERSIZEY]),
+                              'x': 156,
+                              'y': 152,
+                              'dialogue': list('000'),
+                              'x_offset': 0,
+                              'text_offset': 0,
+                              'letter_cd': 60,
+                              'floor': 2
                             }
                    }
     
     CHARACTERS['Guest']['rect'] = pygame.Rect(CHARACTERS['Guest']['x'], CHARACTERS['Guest']['y'], PLAYERSIZEX, PLAYERSIZEY)
-
+    CHARACTERS['Rowan']['rect'] = pygame.Rect(CHARACTERS['Rowan']['x'], CHARACTERS['Rowan']['y'], PLAYERSIZEX, PLAYERSIZEY)
+    
     TILESET = {'topleft':        pygame.image.load('tiles/platforms/topleft.png'),
                'top':            pygame.image.load('tiles/platforms/top.png'),
                'topright':       pygame.image.load('tiles/platforms/topright.png'),
@@ -99,11 +111,13 @@ def run_game():
                }
     
     MAPSET = { 0: load_map('map0'),
-               1: load_map('map1')
+               1: load_map('map1'),
+               2: load_map('map2')
               }
     
     BGSET = {0: load_background('bg0'),
-             1: load_background('bg0')
+             1: load_background('bg0'),
+             2: load_background('bg0')
              }   
      
     SOUNDS = {'jump':   pygame.mixer.Sound('sound/jump.wav'),
@@ -120,11 +134,15 @@ def run_game():
     floor = 0
 
     character = get_character(CHARACTERS, floor)
-    game_map, tiles = draw_map(MAPSET[floor], BGSET[floor], character)
+    if floor != 2:
+        game_map, tiles = draw_map(MAPSET[floor], BGSET[floor], character)
+    else:
+        game_map, tiles = draw_map(MAPSET[floor], BGSET[floor])
     clear_map = game_map.copy()
     game_rect = game_map.get_rect()
     game_rect.center = (WINWIDTH / 2, WINHEIGHT / 2)
     DISPLAYSURF.blit(game_map, game_rect)
+    DISPLAYSURF.blit(character['image'], character['rect'])
 
     animation_frames = {}
     animation_database = {'idle':   load_animation('animations/idle', [140, 10]),
@@ -161,47 +179,60 @@ def run_game():
     velocityY = 0
     xrange = 0
     jumpPower = 0
-    floor = 0
     jumps = 0
     scrollX = 0
     typeText = True
     interrupted = False
     while True:
         
-        if character and character['dialogue'] and not interrupted:
-            clearText = draw_tw_text(textFont, game_map, character['dialogue'], character)
-            if not clearText:
-                textSurf = pygame.Surface((character['text_offset'], 24))
-                textRect = textSurf.get_rect()
-                textRect.topleft = (character['x'] - character['x_offset'], character['y'] - 24)
-                textSurf.blit(game_map, (0, 0), area=textRect)
+        if floor == 2:
+            if (character['rect'].right - player['rect'].left) >= -5 and isGrounded: 
+                return
+            
+        if floor == 0 and not interrupted:
+            if character['dialogue']:
+                clearText = draw_tw_text(textFont, game_map, character['dialogue'], character)
+                if not clearText:
+                    textSurf = pygame.Surface((character['text_offset'], 24))
+                    textRect = textSurf.get_rect()
+                    textRect.topleft = (character['x'] - character['x_offset'], character['y'] - 24)
+                    textSurf.blit(game_map, (0, 0), area=textRect)
+                else:
+                    game_map, clear_map = clear_map, clear_map.copy()
+                    DISPLAYSURF.fill(BGCOLOR)
+                    DISPLAYSURF.blit(clear_map, game_rect)
             else:
-                game_map, clear_map = clear_map, clear_map.copy()
-                DISPLAYSURF.fill(BGCOLOR)
-                DISPLAYSURF.blit(clear_map, game_rect)
+                typeText = False
         else:
             typeText = False
-            
+        
+           
         if player['rect'].colliderect(DISPLAYSURF.get_rect()) == 0:
-            if player['rect'].y < 0:
-                floor += 1
-                interrupted = True
-                player['rect'].y = WINHEIGHT
-            elif player['rect'].y > 0:
-                floor -= 1
-                interrupted = True
-                player['rect'].y = 0
-            character = get_character(CHARACTERS, floor)
-            game_map, tiles = draw_map(MAPSET[floor], BGSET[floor], character)
-            clear_map = game_map.copy()
-            game_rect = game_map.get_rect()
+                if player['rect'].y < 0:
+                    if floor < len(MAPSET) - 1:
+                        floor += 1
+                        interrupted = True
+                        player['rect'].y = WINHEIGHT
+                elif player['rect'].y > 0:
+                    floor -= 1
+                    interrupted = True
+                    player['rect'].y = -8
+                character = get_character(CHARACTERS, floor)
+                if floor != 2:
+                    game_map, tiles = draw_map(MAPSET[floor], BGSET[floor], character)
+                else:
+                    game_map, tiles = draw_map(MAPSET[floor], BGSET[floor])
+                clear_map = game_map.copy()
+                game_rect = game_map.get_rect()
 
-
+        
         DISPLAYSURF.fill(BGCOLOR)
         DISPLAYSURF.blit(clear_map, game_rect)
         if typeText:
             DISPLAYSURF.blit(textSurf, textRect)
-        
+        if floor == 2:
+            DISPLAYSURF.blit(character['image'], character['rect'])
+            
         player_img_id = animation_database[player['action']][player['frame']]
         if player['action'] != 'crash':
             player['surface'] = pygame.transform.scale(animation_frames[player_img_id], [PLAYERSIZEX, PLAYERSIZEY])
@@ -222,6 +253,7 @@ def run_game():
             elif event.type == KEYDOWN:
                 if event.key == K_ESCAPE:
                     terminate()
+                
                 elif event.key == K_o:
                     screen = DISPLAYSURF.copy()
                     scrollX = option_screen(screen, jumps, scrollX)
@@ -229,17 +261,23 @@ def run_game():
                         sound.set_volume(SOUNDVOL)
                 if not hasCrashed:
                     if event.key in (K_LEFT, K_a):
-                        moveLeft = True
-                        moveRight = False
-                        if player['facing'] == RIGHT and isGrounded:
-                            flip = False
-                        player['facing'] = LEFT
+                        if isCharging and xrange > 0:
+                            pass
+                        else:
+                            moveLeft = True
+                            moveRight = False
+                            if player['facing'] == RIGHT and isGrounded:
+                                flip = False
+                            player['facing'] = LEFT
                     elif event.key in (K_RIGHT, K_d):
-                        moveLeft = False
-                        moveRight = True
-                        if player['facing'] == LEFT and isGrounded:
-                            flip = True
-                        player['facing'] = RIGHT
+                        if isCharging and xrange < 0:
+                            pass
+                        else:
+                            moveLeft = False
+                            moveRight = True
+                            if player['facing'] == LEFT and isGrounded:
+                                flip = True
+                            player['facing'] = RIGHT
                     elif event.key == K_SPACE:
                         if not isCharging and isGrounded:
                             isCharging = True
@@ -362,8 +400,8 @@ def run_game():
                 SOUNDS['bounce'].play()
                 bounceSide = RIGHT
             player['action'], player['frame'] = change_action(player['action'], player['frame'], 'bounce')
-                
-
+           
+           
         pygame.display.update()
         FPSCLOCK.tick(FPS)
         
@@ -423,6 +461,7 @@ def start_screen():
                     DISPLAYSURF.blit(bgImage, bgRect) 
                     DISPLAYSURF.blit(draw_button(3), buttonRect)
                     clicked = True
+                    
         pygame.display.update()
         FPSCLOCK.tick(FPS)
 
@@ -483,6 +522,48 @@ def option_screen(gamemap, jumps, scrollX=0):
         FPSCLOCK.tick(FPS)
         
 
+def end_scene():
+    sceneTimer = 0
+    while True:
+        for event in pygame.event.get():
+            if event.type == QUIT:
+                terminate()
+                
+        if sceneTimer > 10 and sceneTimer < 200:
+            if character['rect'].right - player['rect'].left > -40:
+                player['action'], player['frame'] = change_action(player['action'], player['frame'], 'walk')
+                player_img_id = animation_database[player['action']][player['frame']]
+                player['surface'] = pygame.transform.scale(animation_frames[player_img_id], [PLAYERSIZEX, PLAYERSIZEY])
+                player['rect'].x += 1
+                DISPLAYSURF.fill(BGCOLOR)
+                DISPLAYSURF.blit(game_map, game_rect)
+                DISPLAYSURF.blit(character['image'], character['rect'])
+                DISPLAYSURF.blit(player['surface'], player['rect'])
+                player['frame'] += 1
+                if player['frame'] >= len(animation_database[player['action']]):
+                    player['frame'] = 0
+            else:
+                player['surface'] = pygame.transform.scale(pygame.image.load('animations/idle/idle0.png'), [PLAYERSIZEX, PLAYERSIZEY])
+                player['surface'].set_colorkey(WHITE)
+                DISPLAYSURF.fill(BGCOLOR)
+                DISPLAYSURF.blit(game_map, game_rect)
+                DISPLAYSURF.blit(character['image'], character['rect'])
+                DISPLAYSURF.blit(player['surface'], player['rect'])
+        
+        elif sceneTimer > 200 and sceneTimer < 500:
+            character['image'] = pygame.transform.scale(pygame.image.load('tiles/characters/RowanJump.png'), [PLAYERSIZEX, PLAYERSIZEY])
+            for height in range(20):
+                character['rect'].y -= 1
+                DISPLAYSURF.fill(BGCOLOR)
+                DISPLAYSURF.blit(game_map, game_rect)
+                # DISPLAYSURF.blit(player['surface'], player['rect'])
+                
+                
+        sceneTimer += 1
+        pygame.display.update()
+        FPSCLOCK.tick(FPS)
+    
+
 def load_map(path):
     map_file = open('tilemaps/' + path + ".txt", 'r')
     map_data = map_file.read()
@@ -491,7 +572,7 @@ def load_map(path):
     game_map = []
     for row in map_data:
         game_map.append(list(row))
-        
+    
     return game_map
 
 def load_background(path):
@@ -520,7 +601,6 @@ def draw_map(tilemap, background, character=None):
     mapSurfHeight = WINHEIGHT
     mapSurf = pygame.Surface((mapSurfWidth, mapSurfHeight))
     mapSurf.fill(BGCOLOR)
-    
     background.set_alpha(80)
     bgRect = background.get_rect()
     mapSurf.blit(background, bgRect)
@@ -604,7 +684,8 @@ def draw_tw_text(font, surf, text, character):
         if char == '$':
             character['letter_cd'] = 60
         else:
-            character['letter_cd'] = 8
+            character['letter_cd'] = 7
+            
     if character['letter_cd']:
         character['letter_cd'] -= 1
     
