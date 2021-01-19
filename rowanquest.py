@@ -8,7 +8,7 @@ WINHEIGHT = 800
 TILESIZE = 32
 PLAYERSIZEX = 30
 PLAYERSIZEY = 40
-SPAWNPOINT = (360, 696)
+SPAWNPOINT = (300, 152)
 RANGERATE = 0.25
 MAXRANGE = 4
 JUMPRATE = -0.25
@@ -43,7 +43,6 @@ def main():
     jumpFont = load_font('fonts/jumpFont.png', ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'])
     textFont = load_font('fonts/textFont.png', ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z', 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z', '.', ',', "'", '!', '?'])
     
-    ## START SCREEN HERE ##
     
     while True:
         start_screen()
@@ -66,15 +65,15 @@ def run_game():
                              'letter_cd': 60,
                              'floor': 0
                             },
-                   'Rowan': {
-                              'image':  pygame.transform.scale(pygame.image.load('tiles/characters/Rowan.png'), [PLAYERSIZEX, PLAYERSIZEY]),
-                              'x': 156,
-                              'y': 152,
-                              'dialogue': list('000'),
-                              'x_offset': 0,
-                              'text_offset': 0,
-                              'letter_cd': 60,
-                              'floor': 2
+                  'Rowan': {
+                             'image':  pygame.transform.scale(pygame.image.load('tiles/characters/Rowan.png'), [PLAYERSIZEX, PLAYERSIZEY]),
+                             'x': 156,
+                             'y': 152,
+                             'dialogue': list('000'),
+                             'x_offset': 0,
+                             'text_offset': 0,
+                             'letter_cd': 60,
+                             'floor': 2
                             }
                    }
     
@@ -134,7 +133,7 @@ def run_game():
         sound.set_volume(SOUNDVOL)
     
     
-    floor = 0
+    floor = 2
 
     character = get_character(CHARACTERS, floor)
     if floor != 2:
@@ -416,7 +415,7 @@ def terminate():
     
     
 def start_screen():
-    bgImage = pygame.transform.scale(pygame.image.load('tiles/backgrounds/titlescreen.png'), [WINWIDTH, WINHEIGHT])
+    bgImage = pygame.transform.scale(pygame.image.load('tiles/backgrounds/titlescreen.png').convert(), [WINWIDTH, WINHEIGHT])
     bgImage.set_alpha(80)
     bgRect = bgImage.get_rect()
     bgRect.topleft = (0, 0)
@@ -550,7 +549,7 @@ def end_scene():
                 if player['frame'] >= len(animation_database[player['action']]):
                     player['frame'] = 0
             else:
-                player['surface'] = pygame.transform.scale(pygame.image.load('animations/idle/idle0.png'), [PLAYERSIZEX, PLAYERSIZEY])
+                player['surface'] = pygame.transform.scale(pygame.image.load('animations/idle/idle0.png').convert(), [PLAYERSIZEX, PLAYERSIZEY])
                 player['surface'].set_colorkey(WHITE)
                 DISPLAYSURF.fill(BGCOLOR)
                 DISPLAYSURF.blit(game_map, game_rect)
@@ -629,7 +628,7 @@ def end_scene():
                 if player['frame'] >= len(animation_database[player['action']]):
                     player['frame'] = 0
             else:
-                player['surface'] = pygame.transform.scale(pygame.image.load('animations/idle/idle0.png'), [PLAYERSIZEX, PLAYERSIZEY])
+                player['surface'] = pygame.transform.scale(pygame.image.load('animations/idle/idle0.png').convert(), [PLAYERSIZEX, PLAYERSIZEY])
                 player['surface'].set_colorkey(WHITE)
                 DISPLAYSURF.fill(BGCOLOR)
                 DISPLAYSURF.blit(game_map, game_rect)
@@ -647,7 +646,7 @@ def end_scene():
 
 def end_screen():
     DISPLAYSURF.fill(BGCOLOR)
-    landscape = pygame.transform.scale(pygame.image.load('tiles/backgrounds/placeholder.png'), [WINWIDTH, 860])
+    landscape = pygame.transform.scale(pygame.image.load('tiles/backgrounds/placeholder.png').convert(), [WINWIDTH, 860])
     alpha = 0
     scroll = 0
     textInfo = { 'dialogue': list("Beautiful...isn't it?$$$ "),
@@ -667,8 +666,8 @@ def end_screen():
             DISPLAYSURF.fill(BGCOLOR)
             DISPLAYSURF.blit(landscape, [0, -120])
         
-        if scroll <= 100:
-            if scroll % 3 == 0:
+        if scroll <= 160:
+            if scroll % 4 == 0:
                 landscape.scroll(0, 1)
             scroll += 1
         
@@ -716,7 +715,7 @@ def load_map(path):
     return game_map
 
 def load_background(path):
-    background = pygame.image.load('tiles/backgrounds/' + path + ".png")
+    background = pygame.image.load('tiles/backgrounds/' + path + ".png").convert()
     bgScaled = pygame.transform.scale(background, [WINWIDTH, WINHEIGHT])
     return bgScaled
 
