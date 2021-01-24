@@ -8,14 +8,14 @@ WINHEIGHT = 800
 TILESIZE = 32
 PLAYERSIZEX = 30
 PLAYERSIZEY = 40
-SPAWNPOINT = (300, 152)
+SPAWNPOINT = (360, 696)
 RANGERATE = 0.25
 MAXRANGE = 4
 JUMPRATE = -0.25
 MAXJUMP = -10
 GRAVITY = 0.25
 MAXGRAVITY = 12
-BOUNCERATE = -0.5
+BOUNCERATE = -0.4
 CRASHSTUN = 2
 CUTSCENETIMER = 0.1
 SOUNDVOL = 0.5
@@ -43,7 +43,6 @@ def main():
     jumpFont = load_font('fonts/jumpFont.png', ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'])
     textFont = load_font('fonts/textFont.png', ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z', 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z', '.', ',', "'", '!', '?'])
     
-    
     while True:
         start_screen()
         run_game()
@@ -65,15 +64,15 @@ def run_game():
                              'letter_cd': 60,
                              'floor': 0
                             },
-                  'Rowan': {
-                             'image':  pygame.transform.scale(pygame.image.load('tiles/characters/Rowan.png'), [PLAYERSIZEX, PLAYERSIZEY]),
-                             'x': 156,
-                             'y': 152,
-                             'dialogue': list('000'),
-                             'x_offset': 0,
-                             'text_offset': 0,
-                             'letter_cd': 60,
-                             'floor': 2
+                   'Rowan': {
+                              'image':  pygame.transform.scale(pygame.image.load('tiles/characters/Rowan.png'), [PLAYERSIZEX, PLAYERSIZEY]),
+                              'x': 156,
+                              'y': 152,
+                              'dialogue': list('000'),
+                              'x_offset': 0,
+                              'text_offset': 0,
+                              'letter_cd': 60,
+                              'floor': 2
                             }
                    }
     
@@ -119,7 +118,8 @@ def run_game():
     
     BGSET = {0: load_background('bg0'),
              1: load_background('bg1'),
-             2: load_background('bg2')
+             2: load_background('bg2'),
+             3: load_background('overlay02')
              }   
      
     SOUNDS = {'jump':   pygame.mixer.Sound('sound/jump.wav'),
@@ -133,13 +133,13 @@ def run_game():
         sound.set_volume(SOUNDVOL)
     
     
-    floor = 2
+    floor = 0
 
     character = get_character(CHARACTERS, floor)
     if floor != 2:
         game_map, tiles = draw_map(MAPSET[floor], BGSET[floor], character)
     else:
-        game_map, tiles = draw_map(MAPSET[floor], BGSET[floor])
+        game_map, tiles = draw_map(MAPSET[floor], BGSET[floor], None, BGSET[3])
     clear_map = game_map.copy()
     game_rect = game_map.get_rect()
     game_rect.center = (WINWIDTH / 2, WINHEIGHT / 2)
@@ -223,7 +223,7 @@ def run_game():
                 if floor != 2:
                     game_map, tiles = draw_map(MAPSET[floor], BGSET[floor], character)
                 else:
-                    game_map, tiles = draw_map(MAPSET[floor], BGSET[floor])
+                    game_map, tiles = draw_map(MAPSET[floor], BGSET[floor], None, BGSET[3])
                 clear_map = game_map.copy()
                 game_rect = game_map.get_rect()
 
@@ -416,7 +416,7 @@ def terminate():
     
 def start_screen():
     bgImage = pygame.transform.scale(pygame.image.load('tiles/backgrounds/titlescreen.png').convert(), [WINWIDTH, WINHEIGHT])
-    bgImage.set_alpha(80)
+    bgImage.set_alpha(100)
     bgRect = bgImage.get_rect()
     bgRect.topleft = (0, 0)
 
@@ -649,7 +649,7 @@ def end_screen():
     landscape = pygame.transform.scale(pygame.image.load('tiles/backgrounds/placeholder.png').convert(), [WINWIDTH, 860])
     alpha = 0
     scroll = 0
-    textInfo = { 'dialogue': list("Beautiful...isn't it?$$$ "),
+    textInfo = { 'dialogue': list("Beautiful... isn't it?$$$ "),
                  'x': WINWIDTH / 2,
                  'y': WINHEIGHT - 15,
                  'text_offset': 0,
@@ -715,7 +715,10 @@ def load_map(path):
     return game_map
 
 def load_background(path):
-    background = pygame.image.load('tiles/backgrounds/' + path + ".png").convert()
+    if path == "overlay02":
+        background = pygame.image.load('tiles/backgrounds/' + path + ".png")
+    else:
+        background = pygame.image.load('tiles/backgrounds/' + path + ".png").convert()
     bgScaled = pygame.transform.scale(background, [WINWIDTH, WINHEIGHT])
     return bgScaled
 
@@ -735,12 +738,12 @@ def load_animation(path, frame_durations):
         
     return animation_frame_data
 
-def draw_map(tilemap, background, character=None):
+def draw_map(tilemap, background, character=None, overlay=None):
     mapSurfWidth = WINWIDTH
     mapSurfHeight = WINHEIGHT
     mapSurf = pygame.Surface((mapSurfWidth, mapSurfHeight))
     mapSurf.fill(BGCOLOR)
-    background.set_alpha(80)
+    background.set_alpha(96)
     bgRect = background.get_rect()
     mapSurf.blit(background, bgRect)
     tiles = []
@@ -752,6 +755,8 @@ def draw_map(tilemap, background, character=None):
                tiles.append(tileRect)
                mapSurf.blit(tile, tileRect)    
     
+    if overlay:
+        mapSurf.blit(overlay, bgRect)
     if character:
         character['image'].set_colorkey(WHITE)
         mapSurf.blit(character['image'], character['rect'])
