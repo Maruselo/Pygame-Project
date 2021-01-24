@@ -1,7 +1,7 @@
 # Projecto Pygame - Rowan Quest
 ## FPRO/MIEIC 2020/21
 ## Marcelo Guarniero Apolinário (up201603903)
-## 1MIEIC0
+## 1MIEIC03
 
 ### Objetivo
 
